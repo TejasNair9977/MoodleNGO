@@ -5,14 +5,23 @@ Install the Moodle application with version 405 with default settings.
 To use this site in its current state, follow these steps:
 
 1. **Database:** Import `moodle_backup.sql` into your local `moodle` database.
+
 IN POWERSHELL, `[System.IO.File]::WriteAllLines("moodle_backup.sql", (Get-Content moodle_backup.sql))` to fix encoding.
+
 IN CMD, `mysql -u root moodle < moodle_backup.sql`
+
 THEN REGENERATE SITE IDENTIFIER:
+
 `mysql -u root moodle`
+
 `DELETE FROM mdl_config WHERE name = 'siteidentifier';`
 
-2. **Moodle Data (Images & H5P):** * Download the `moodledata_backup.zip` from the repo.
-   * Unzip it and place the `moodledata` folder directly into your `./server` directory.
+
+2. **Moodle Data (Images & H5P):**
+
+* Download the `moodledata_backup.zip` from the repo.
+   
+* Unzip it and place the `moodledata` folder directly into your `./server` directory.
 
 Adding h5p courses is a little tough, and may require much larger backups because of the requirement of extensions, so I have excluded it from here.
 
