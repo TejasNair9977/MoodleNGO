@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: moodle
+      POSTGRES_USER: moodle
+      POSTGRES_PASSWORD: moodle_password
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  moodle:
+    image: moodlehq/moodle-php-apache:8.3
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      - APACHE_DOCUMENT_ROOT=/var/www/html/public
+      - PHP_INI_ZEND_EXCEPTION_IGNORE_ARGS=On    # <-- Add this line
+    volumes:
+      - ./moodle:/var/www/html
+      - moodledata:/var/www/moodledata
+    depends_on:
+      - db
+
+volumes:
+  db_data:
+  moodledata:

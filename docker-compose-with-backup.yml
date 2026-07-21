@@ -1,0 +1,41 @@
+services:
+  db:
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: moodle
+      MYSQL_USER: moodle
+      MYSQL_PASSWORD: moodle_password
+      MYSQL_ROOT_PASSWORD: root_password
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./moodle_backup.sql:/docker-entrypoint-initdb.d/moodle_backup.sql
+
+  moodle:
+    image: moodlehq/moodle-php-apache:8.3
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      - APACHE_DOCUMENT_ROOT=/var/www/html/public
+      - PHP_INI_ZEND_EXCEPTION_IGNORE_ARGS=On
+    volumes:
+      - ./moodle:/var/www/html
+      - ./moodledata:/var/www/moodledata
+      - ./clear_site.php:/var/www/html/clear_site.php
+    depends_on:
+      - db
+    command: >
+      bash -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        php /var/www/html/clear_site.php &&
+        echo 'Fixing file permissions and purging caches...' &&
+        chown -R www-data:www-data /var/www/html /var/www/moodledata &&
+        su -s /bin/bash www-data -c 'php /var/www/html/admin/cli/purge_caches.php' &&
+        echo 'Initialization complete! Starting Apache...' &&
+        apache2-foreground
+      "
+
+volumes:
+  db_data:
