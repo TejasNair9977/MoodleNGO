@@ -1,5 +1,10 @@
 # Moodle Site Backup
 
+Download the local Moodle server bundle here:
+https://drive.google.com/file/d/1ykF3-Mvf3UnYMoUfP2LTpaJvg6cwt0nG/view?usp=sharing
+
+This file is the external server.zip package used to restore the Moodle runtime. It is intentionally kept outside the Git repository so the project can still be pushed without hitting GitHub's file-size limits.
+
 Install the Moodle application with version 405 with default settings.
 
 To use this site in its current state, follow these steps:
