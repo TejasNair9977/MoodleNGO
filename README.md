@@ -2,12 +2,6 @@
 
 This repository stores the database dump and the restore scripts for the local Moodle environment. The large server runtime bundle is kept outside Git and is downloaded separately from the link below.
 
-## Download the runtime bundle
-
-https://drive.google.com/file/d/1ykF3-Mvf3UnYMoUfP2LTpaJvg6cwt0nG/view?usp=sharing
-
-This is the external `server.zip` bundle that contains the Moodle runtime files. It is intentionally not committed to Git because GitHub rejects files above 100 MB.
-
 ## What this backup contains
 
 - `moodle_backup.sql` — the latest MySQL dump for the Moodle database
@@ -27,12 +21,6 @@ If the folder already contains an old `moodle` or `moodledata` folder, delete it
 ### 2. Restore the database
 
 Import the SQL dump into the local Moodle database.
-
-PowerShell:
-
-```powershell
-[System.IO.File]::WriteAllLines("moodle_backup.sql", (Get-Content moodle_backup.sql))
-```
 
 Command Prompt:
 
