@@ -65,20 +65,15 @@ DELETE FROM mdl_config WHERE name = 'siteidentifier';
 
 If Moodle is currently running, click the **Stop Moodle.exe** application in your `C:\Users\tejas\moodle-dev\` folder to shut it down.
 
-### 4. Restore the Moodle runtime files
+### 4. Run the restore script
 
-The `server.zip` bundle will be extracted automatically by the restore script. If you need to extract it manually:
+The restore script will:
+- Extract `server.zip` automatically
+- Generate a fresh `config.php` with the correct paths for your system
+- Import the database backup
+- Set up everything needed
 
-```powershell
-# Using 7-Zip (recommended)
-& 'C:\Program Files\7-Zip\7z.exe' x -o"C:\Users\tejas\moodle-dev\server" "server.zip"
-```
-
-**Important:** After extracting `server.zip`, the `config.php` file inside the extracted `moodle/` folder contains hardcoded paths specific to this system. You must update the `$CFG->dataroot` path to match your local setup:
-
-```php
-$CFG->dataroot = 'C:\Users\[YourUsername]\moodle-dev\moodledata';
-```
+The script handles all path configuration automatically, so you don't need to manually edit `config.php`.
 
 ### 5. Start Moodle
 
