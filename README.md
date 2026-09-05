@@ -2,11 +2,36 @@
 
 This repository stores the database dump and the restore scripts for the local Moodle environment. The large server runtime bundle is kept outside Git and is downloaded separately from the link below.
 
+## Prerequisites
+
+Before restoring, ensure you have the following installed:
+
+### 1. Moodle 4.5.x for Windows
+
+Download from: https://download.moodle.org/windows/
+
+Extract it to `C:\Users\[YourUsername]\moodle-dev\server\` (create the folders if needed).
+
+### 2. 7-Zip
+
+Download from: https://www.7-zip.org/download.html
+
+This is required for extracting the `server.zip` backup file efficiently.
+
 ## What this backup contains
 
 - `moodle_backup.sql` — the latest MySQL dump for the Moodle database
 - `restore-moodle-backup.ps1` — the restore script for rebuilding the local Moodle server
 - `server.zip` — the local Moodle application runtime to restore the `moodle/` and `moodledata/` directories
+
+## Cloning this repository
+
+When cloning this repository, **the initial clone may appear frozen for a few minutes**. This is normal—`server.zip` is a large file (234 MB) and is tracked with Git LFS. Please be patient and let the clone complete.
+
+```powershell
+git clone https://github.com/TejasNair9977/MoodleNGO.git
+cd MoodleNGO
+```
 
 ## Recommended restore process
 
@@ -34,21 +59,30 @@ Then reset the Moodle site identifier so the site is treated as a fresh install:
 DELETE FROM mdl_config WHERE name = 'siteidentifier';
 ```
 
-### 3. Restore the Moodle runtime files
+### 3. Stop Moodle
 
-Download the `server.zip` bundle from the link above and extract it into the local server folder.
+**Important:** Before running the restore script, you must stop the Moodle server.
 
-This should restore the `moodle/` and `moodledata/` folders directly inside the target server directory.
+If Moodle is currently running, click the **Stop Moodle.exe** application in your `C:\Users\tejas\moodle-dev\` folder to shut it down.
 
-Example:
+### 4. Restore the Moodle runtime files
+
+The `server.zip` bundle will be extracted automatically by the restore script. If you need to extract it manually:
 
 ```powershell
-Expand-Archive -LiteralPath "C:\path\to\server.zip" -DestinationPath "C:\Users\tejas\moodle-dev\server" -Force
+# Using 7-Zip (recommended)
+& 'C:\Program Files\7-Zip\7z.exe' x -o"C:\Users\tejas\moodle-dev\server" "server.zip"
 ```
 
-### 4. Start Moodle
+**Important:** After extracting `server.zip`, the `config.php` file inside the extracted `moodle/` folder contains hardcoded paths specific to this system. You must update the `$CFG->dataroot` path to match your local setup:
 
-Open the Moodle startup application for your local environment and complete the setup wizard if the site asks for it.
+```php
+$CFG->dataroot = 'C:\Users\[YourUsername]\moodle-dev\moodledata';
+```
+
+### 5. Start Moodle
+
+Click the **Start Moodle.exe** application in your `C:\Users\tejas\moodle-dev\` folder to start the Moodle server.
 
 Then open the site in the browser and check the homepage, admin area, and sample content.
 

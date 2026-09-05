@@ -167,7 +167,7 @@ if (Test-Path -LiteralPath $repoCode) {
     Copy-Item -LiteralPath $repoCode -Destination $LocalRoot -Recurse -Force
 }
 
-$startMoodleExe = 'C:\Users\tejas\moodle-dev\Start Moodle.exe'
+$startMoodleExe = Join-Path (Split-Path $LocalRoot -Parent) 'Start Moodle.exe'
 if (Test-Path -LiteralPath $startMoodleExe) {
     $startMoodleDir = Split-Path -Parent $startMoodleExe
     Write-Host "Launching Moodle startup application from $startMoodleDir..."
