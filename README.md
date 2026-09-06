@@ -147,3 +147,51 @@ Moodle uses a centralized content bank for interactive resources such as H5P act
 - The large runtime bundle is intentionally kept outside Git because GitHub rejects large files over the 100 MB limit.
 - The project is meant to store the restore scripts and SQL backup, while the actual Moodle server runtime is restored from the external archive.
 - If you move the project to a new machine, download the `server.zip` file again and extract it into the target server folder before running the restore script.
+
+## Docker setup
+
+Install and start [Docker Desktop](https://www.docker.com/products/docker-desktop/) before using Docker.
+
+### MariaDB setup with the backup
+
+Use this option to start Moodle with MariaDB and initialize the database from `moodle_backup.sql`:
+
+```powershell
+# Extract server.zip into this repository first so moodle/ and moodledata/ exist.
+7z x server.zip -o. -y
+
+docker compose -f docker-compose-with-backup.yml up -d
+```
+
+Open Moodle at http://localhost:8080. Follow the container logs while it starts:
+
+```powershell
+docker compose -f docker-compose-with-backup.yml logs -f moodle
+```
+
+The SQL file is imported only when the database volume is created for the first time. To completely reset the Docker database and import the backup again:
+
+```powershell
+docker compose -f docker-compose-with-backup.yml down -v
+docker compose -f docker-compose-with-backup.yml up -d
+```
+
+### PostgreSQL setup
+
+Use the default Compose file for a clean PostgreSQL-based Moodle container:
+
+```powershell
+# Extract server.zip into this repository first so moodle/ exists.
+7z x server.zip -o. -y
+
+docker compose up -d
+```
+
+Open Moodle at http://localhost:8080. View logs or stop the services with:
+
+```powershell
+docker compose logs -f moodle
+docker compose down
+```
+
+The default Compose setup uses PostgreSQL and does not automatically import `moodle_backup.sql`. Do not run both Compose files at the same time because they use the same Moodle port.
