@@ -1,11 +1,11 @@
 param(
     [string]$BackupRoot = "C:\Users\tejas\MoodleNGO",
-    [string]$LocalRoot = "C:\Users\tejas\moodle-dev\server",
-    [string]$SiteUrl = "http://localhost",
+    [string]$LocalRoot = "C:\temp\n\server",
+    [string]$SiteUrl = "https://localhost",
     [string]$DatabaseName = "moodle",
     [string]$DbUser = "root",
     [string]$DbPassword = "",
-    [string]$DbHost = "127.0.0.1",
+    [string]$DbHost = "localhost",
     [switch]$Force
 )
 
@@ -41,17 +41,44 @@ function Wait-ForMoodleSetup {
     Write-Host "Opening $Url in your default browser..."
     Start-Process -FilePath $Url
 
-    Write-Host 'Please finish the Moodle setup in the browser.'
-    Write-Host 'When you are done, type DONE and press Enter to continue.'
+    Write-Host 'Please verify the restored Moodle site in the browser.'
+    Write-Host 'When you are done, type DONE and press Enter to finish.'
 
     while ($true) {
-        $response = Read-Host -Prompt 'Type DONE when setup is complete.'
+        $response = Read-Host -Prompt 'Type DONE when verification is complete.'
         if ($response -eq 'DONE') {
             Write-Host 'Continuing the restore...'
             return
         }
-        Write-Host 'Type DONE when setup is complete.'
+        Write-Host 'Type DONE when verification is complete.'
     }
+}
+
+function Wait-ForMySql {
+    param(
+        [string]$Executable,
+        [string]$HostName,
+        [string]$User,
+        [string]$Password
+    )
+
+    $arguments = @('-h', $HostName, '-u', $User)
+    if ($Password) {
+        $arguments += @('-p' + $Password)
+    }
+    $arguments += @('-N', '-e', 'SELECT 1;')
+
+    Write-Host 'Waiting for the local MySQL server...'
+    for ($attempt = 0; $attempt -lt 30; $attempt++) {
+        $null = & $Executable @arguments 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host 'MySQL is ready.'
+            return
+        }
+        Start-Sleep -Seconds 2
+    }
+
+    throw 'MySQL did not become available within 60 seconds. Check that Moodle services are running.'
 }
 
 function Expand-ArchiveToFolder {
@@ -96,6 +123,7 @@ $localData = Join-Path $LocalRoot 'moodledata'
 $mysqlBin = Join-Path $LocalRoot 'mysql\bin'
 $mysqlExe = Join-Path $mysqlBin 'mysql.exe'
 $mysqldumpExe = Join-Path $mysqlBin 'mysqldump.exe'
+$phpExe = Join-Path $LocalRoot 'php\php.exe'
 
 if (-not (Test-Path -LiteralPath $repoServerArchive) -and -not (Test-Path -LiteralPath $repoCode)) {
     throw "A Moodle runtime archive or code folder was not found in $BackupRoot. Download server.zip or keep the moodle folder in the backup root."
@@ -110,6 +138,7 @@ Test-CommandExists -Path $LocalRoot
 Test-CommandExists -Path $mysqlBin
 Test-CommandExists -Path $mysqlExe
 Test-CommandExists -Path $mysqldumpExe
+Test-CommandExists -Path $phpExe
 
 if (Test-Path -LiteralPath $localCode) {
     Write-Host "Moodle code already exists at $localCode"
@@ -145,7 +174,7 @@ if (Test-Path -LiteralPath $localCode) {
     if (Test-Path -LiteralPath $backupCodeFolder) {
         Remove-Item -LiteralPath $backupCodeFolder -Recurse -Force
     }
-    Rename-Item -LiteralPath $localCode -NewName (Split-Path $localCode -Leaf) + ".backup-$timestamp"
+    Rename-Item -LiteralPath $localCode -NewName ((Split-Path $localCode -Leaf) + ".backup-$timestamp")
 }
 
 if (-not (Test-Path -LiteralPath $localData)) {
@@ -167,16 +196,49 @@ if (Test-Path -LiteralPath $repoCode) {
     Copy-Item -LiteralPath $repoCode -Destination $LocalRoot -Recurse -Force
 }
 
+$cfgPath = Join-Path $localCode 'config.php'
+$cfgContent = @"
+<?php
+unset(`$CFG);
+global `$CFG;
+`$CFG = new stdClass();
+
+`$CFG->dbtype    = 'mariadb';
+`$CFG->dblibrary = 'native';
+`$CFG->dbhost    = '$DbHost';
+`$CFG->dbname    = '$DatabaseName';
+`$CFG->dbuser    = '$DbUser';
+`$CFG->dbpass    = '$DbPassword';
+`$CFG->prefix    = 'mdl_';
+`$CFG->dboptions = array (
+    'dbpersist' => 0,
+    'dbport' => '',
+    'dbsocket' => '',
+    'dbcollation' => 'utf8mb4_unicode_ci',
+);
+
+`$CFG->wwwroot   = '$SiteUrl';
+`$CFG->dataroot  = '$localData';
+`$CFG->admin     = 'admin';
+
+`$CFG->directorypermissions = 0777;
+
+require_once(__DIR__ . '/lib/setup.php');
+"@
+
+[System.IO.File]::WriteAllText($cfgPath, $cfgContent, [System.Text.UTF8Encoding]::new($false))
+
 $startMoodleExe = Join-Path (Split-Path $LocalRoot -Parent) 'Start Moodle.exe'
 if (Test-Path -LiteralPath $startMoodleExe) {
     $startMoodleDir = Split-Path -Parent $startMoodleExe
     Write-Host "Launching Moodle startup application from $startMoodleDir..."
     Start-Process -FilePath $startMoodleExe -WorkingDirectory $startMoodleDir -WindowStyle Normal
-    Wait-ForMoodleSetup -Url $SiteUrl
 }
 else {
     Write-Warning "Start Moodle.exe was not found at $startMoodleExe."
 }
+
+Wait-ForMySql -Executable $mysqlExe -HostName $DbHost -User $DbUser -Password $DbPassword
 
 $backupSql = Join-Path $LocalRoot ("moodle-backup-before-restore-" + $timestamp + ".sql")
 $databaseCheckArgs = @('-h', $DbHost, '-u', $DbUser)
@@ -235,36 +297,14 @@ if ($DbPassword) {
 $siteResetArgs += @('-e', "DELETE FROM $DatabaseName.mdl_config WHERE name = 'siteidentifier';")
 Invoke-MySqlCommand -Executable $mysqlExe -Arguments $siteResetArgs | Out-Null
 
-$cfgPath = Join-Path $localCode 'config.php'
-$cfgContent = @"
-<?php
-unset(`$CFG);
-global `$CFG;
-`$CFG = new stdClass();
+Write-Host 'Purging Moodle caches after database restore...'
+$purgeCachesScript = Join-Path $localCode 'admin\cli\purge_caches.php'
+& $phpExe $purgeCachesScript
+if ($LASTEXITCODE -ne 0) {
+    throw 'Moodle cache purge failed after database restore.'
+}
 
-`$CFG->dbtype    = 'mariadb';
-`$CFG->dblibrary = 'native';
-`$CFG->dbhost    = '127.0.0.1';
-`$CFG->dbname    = '$DatabaseName';
-`$CFG->dbuser    = '$DbUser';
-`$CFG->dbpass    = '$DbPassword';
-`$CFG->prefix    = 'mdl_';
-`$CFG->dboptions = [
-    'dbpersist' => false,
-    'dbsocket'  => false,
-    'dbport'    => '',
-    'dbhandlesoptions' => false,
-    'dbcollation' => 'utf8mb4_unicode_ci',
-];
-
-`$CFG->wwwroot   = '$SiteUrl';
-`$CFG->dataroot  = '$localData';
-`$CFG->routerconfigured = false;
-`$CFG->directorypermissions = 02777;
-`$CFG->admin = 'admin';
-"@
-
-Set-Content -LiteralPath $cfgPath -Value $cfgContent -Encoding UTF8
+Wait-ForMoodleSetup -Url $SiteUrl
 
 Write-Host 'Restore script completed.'
 Write-Host 'Next step: complete any setup or configuration steps necessary for your Moodle installation by going to localhost.'
