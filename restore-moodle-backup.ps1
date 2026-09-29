@@ -113,6 +113,169 @@ function Expand-ArchiveToFolder {
     Expand-Archive -LiteralPath $ArchivePath -DestinationPath $DestinationPath -Force
 }
 
+function Get-BrandingFile {
+    param(
+        [string]$BrandingRoot,
+        [string[]]$PossibleNames
+    )
+
+    if (-not (Test-Path -LiteralPath $BrandingRoot)) {
+        return $null
+    }
+
+    $files = Get-ChildItem -LiteralPath $BrandingRoot -File -ErrorAction SilentlyContinue
+    foreach ($possible in $PossibleNames) {
+        $match = $files | Where-Object { $_.Name -ieq $possible } | Select-Object -First 1
+        if ($match) {
+            return $match.FullName
+        }
+    }
+
+    foreach ($possible in $PossibleNames) {
+        $match = $files | Where-Object { $_.Name -ilike "*$possible*" } | Select-Object -First 1
+        if ($match) {
+            return $match.FullName
+        }
+    }
+
+    return $null
+}
+
+function Invoke-BrandingSetup {
+    param(
+        [string]$BrandingRoot,
+        [string]$MoodleRoot,
+        [string]$PhpExe
+    )
+
+    $searchRoots = @()
+    if (Test-Path -LiteralPath $BrandingRoot) {
+        $searchRoots += $BrandingRoot
+    }
+
+    $backupRoot = Split-Path -Parent $BrandingRoot
+    if ($backupRoot -and (Test-Path -LiteralPath $backupRoot) -and ($BrandingRoot -ne $backupRoot)) {
+        $searchRoots += $backupRoot
+    }
+
+    if ($searchRoots.Count -eq 0) {
+        Write-Host "No branding folder found at $BrandingRoot. Skipping branding setup."
+        return
+    }
+
+    $logo = $null
+    $favicon = $null
+    $background = $null
+    $loginBackground = $null
+    $loginLogo = $null
+
+    foreach ($searchRoot in $searchRoots) {
+        if (-not $logo) { $logo = Get-BrandingFile -BrandingRoot $searchRoot -PossibleNames @('logo.png', 'logo.jpg', 'logo.jpeg', 'logo.svg', 'site-logo.png', 'site-logo.jpg', 'site-logo.svg') }
+        if (-not $favicon) { $favicon = Get-BrandingFile -BrandingRoot $searchRoot -PossibleNames @('favicon.ico', 'favicon.png', 'favicon.svg', 'site-favicon.ico', 'site-favicon.png', 'site-favicon.svg') }
+        if (-not $background) { $background = Get-BrandingFile -BrandingRoot $searchRoot -PossibleNames @('background.jpg', 'background.jpeg', 'background.png', 'site-background.jpg', 'site-background.png', 'home-background.jpg') }
+        if (-not $loginBackground) { $loginBackground = Get-BrandingFile -BrandingRoot $searchRoot -PossibleNames @('login-background.jpg', 'login-background.jpeg', 'login-background.png', 'login-bg.jpg', 'login-bg.png', 'background-login.jpg') }
+        if (-not $loginLogo) { $loginLogo = Get-BrandingFile -BrandingRoot $searchRoot -PossibleNames @('login-logo.png', 'login-logo.svg', 'login-logo.jpg', 'login-logo.jpeg', 'small-logo.png', 'small-logo.svg') }
+
+        if ($logo -and $favicon -and $background -and $loginBackground -and $loginLogo) {
+            break
+        }
+    }
+
+    $assetMap = [ordered]@{
+        logo = $logo
+        favicon = $favicon
+        background = $background
+        loginBackground = $loginBackground
+        loginLogo = $loginLogo
+    }
+
+    $missing = @()
+    foreach ($entry in $assetMap.GetEnumerator()) {
+        if (-not $entry.Value) {
+            $missing += $entry.Key
+        }
+    }
+
+    if ($missing.Count -gt 0) {
+        Write-Host "Skipping branding setup because these files are missing from $BrandingRoot: $($missing -join ', ')"
+        return
+    }
+
+    $phpBrandScript = @"
+<?php
+require_once('$MoodleRoot/config.php');
+require_once(
+    \$CFG->dirroot . '/lib/filelib.php'
+);
+
+function save_brand_file(string \$component, string \$filearea, string \$sourcepath, int \$itemid = 0): void {
+    if (!file_exists(\$sourcepath)) {
+        throw new RuntimeException('Missing file: ' . \$sourcepath);
+    }
+
+    \$context = context_system::instance();
+    \$fs = get_file_storage();
+    \$fs->delete_area_files(\$context->id, \$component, \$filearea, \$itemid);
+
+    \$filename = basename(\$sourcepath);
+    \$fs->create_file_from_pathname([
+        'contextid' => \$context->id,
+        'component' => \$component,
+        'filearea' => \$filearea,
+        'itemid' => \$itemid,
+        'filepath' => '/',
+        'filename' => \$filename,
+    ], \$sourcepath);
+
+    set_config(\$filearea, '/' . \$filename, \$component);
+}
+
+save_brand_file('core_admin', 'logo', '$logo');
+save_brand_file('core_admin', 'logocompact', '$logo');
+save_brand_file('core_admin', 'favicon', '$favicon');
+save_brand_file('theme_degrade', 'backgroundimage', '$background');
+save_brand_file('theme_degrade', 'loginbackgroundimage', '$loginBackground');
+save_brand_file('theme_degrade', 'loginlogo', '$loginLogo');
+
+purge_caches();
+printf("Branding updated from repo folder.\\n");
+"@
+
+    $tempBrandingScript = Join-Path $env:TEMP 'moodle-branding-apply.php'
+    $phpBrandScript | Set-Content -LiteralPath $tempBrandingScript -Encoding UTF8
+
+    Write-Host 'Applying branding from the repo branding folder...'
+    & $PhpExe $tempBrandingScript
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Moodle branding update failed.'
+    }
+
+    $purgeCachesScript = Join-Path $MoodleRoot 'admin\cli\purge_caches.php'
+    if (Test-Path -LiteralPath $purgeCachesScript) {
+        Write-Host 'Clearing Moodle caches after branding update...'
+        & $PhpExe $purgeCachesScript
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Cache purge failed after branding update.'
+        }
+    }
+
+    $stopMoodleExe = Join-Path (Split-Path $MoodleRoot -Parent) 'Stop Moodle.exe'
+    $startMoodleExe = Join-Path (Split-Path $MoodleRoot -Parent) 'Start Moodle.exe'
+
+    if (Test-Path -LiteralPath $stopMoodleExe) {
+        Write-Host 'Stopping Moodle to apply branding cleanly...'
+        Start-Process -FilePath $stopMoodleExe -WorkingDirectory (Split-Path -Parent $stopMoodleExe) -Wait
+    }
+
+    if (Test-Path -LiteralPath $startMoodleExe) {
+        Write-Host 'Restarting Moodle after branding update...'
+        Start-Process -FilePath $startMoodleExe -WorkingDirectory (Split-Path -Parent $startMoodleExe) -WindowStyle Normal
+    }
+    else {
+        Write-Warning 'Start Moodle.exe was not found; branding was updated but Moodle was not restarted automatically.'
+    }
+}
+
 $repoCode = Join-Path $BackupRoot 'moodle'
 $repoData = Join-Path $BackupRoot 'moodledata'
 $repoServerArchive = Join-Path $BackupRoot 'server.zip'
@@ -303,6 +466,9 @@ $purgeCachesScript = Join-Path $localCode 'admin\cli\purge_caches.php'
 if ($LASTEXITCODE -ne 0) {
     throw 'Moodle cache purge failed after database restore.'
 }
+
+$repoBrandingRoot = Join-Path $BackupRoot 'branding'
+Invoke-BrandingSetup -BrandingRoot $repoBrandingRoot -MoodleRoot $localCode -PhpExe $phpExe
 
 Wait-ForMoodleSetup -Url $SiteUrl
 
