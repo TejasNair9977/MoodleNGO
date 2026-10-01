@@ -26,7 +26,7 @@ This is required for extracting the `server.zip` backup file efficiently.
 
 ## Cloning this repository
 
-When cloning this repository, **the initial clone may appear frozen for a few minutes**. This is normal—`server.zip` is a large file (234 MB) and is tracked with Git LFS. Please be patient and let the clone complete.
+When cloning this repository, **the initial clone may appear frozen for a few minutes**. This is normal—`server.zip` is a large file (234 MB) and is tracked with Git LFS. Please be patient and let it complete.
 
 ```powershell
 git clone https://github.com/TejasNair9977/MoodleNGO.git
@@ -57,11 +57,17 @@ Run this from the repository folder in PowerShell:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\restore-moodle-backup.ps1
 ```
 
-The script asks for confirmation before replacing local Moodle data. It backs up existing Moodle folders, extracts `server.zip`, writes `config.php` including Moodle's required `lib/setup.php` bootstrap, starts Moodle services, waits for MySQL, restores `moodle_backup.sql`, resets the site identifier, and purges Moodle caches before opening the site. This order ensures Moodle does not load stale cached data from before the database restore. Afterward, verify the restored site in the browser and type `DONE` in PowerShell. The configured site URL must match the URL and scheme you use in the browser (for example, `http://localhost` versus `https://localhost`). The execution-policy bypass applies only to this PowerShell process.
+The script asks for confirmation before replacing local Moodle data. It backs up existing Moodle folders, extracts `server.zip`, writes `config.php` including Moodle's required `lib/setup.php` bootstrap, starts the Moodle server, imports the database, and applies branding.
+
+**Important:** The restore script requires the Moodle site to have been initialized at least once. If you're restoring to a fresh installation, run the Moodle setup wizard first, then run this script.
 
 ### 4. Verify the restore
 
 After the script reports completion, open the site and check the homepage, admin area, and sample content.
+
+### 5. Restart recommended
+
+After the restore completes, a restart of Moodle is recommended to ensure all services are running cleanly.
 
 ## Login credentials
 
