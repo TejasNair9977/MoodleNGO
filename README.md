@@ -57,13 +57,19 @@ Run this from the repository folder in PowerShell:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\restore-moodle-backup.ps1
 ```
 
-The script asks for confirmation before replacing local Moodle data. It backs up existing Moodle folders, extracts `server.zip`, writes `config.php` including Moodle's required `lib/setup.php` bootstrap, starts the Moodle server, imports the database, and applies branding.
+The script asks for confirmation before replacing local Moodle data. It removes existing Moodle folders without making backups, extracts `server.zip`, writes `config.php` including Moodle's required `lib/setup.php` bootstrap, starts the Moodle server, imports the database, and waits for you to verify the site before applying branding.
 
 **Important:** The restore script requires the Moodle site to have been initialized at least once. If you're restoring to a fresh installation, run the Moodle setup wizard first, then run this script.
 
+
+
 ### 4. Verify the restore
 
-After the script reports completion, open the site and check the homepage, admin area, and sample content.
+
+
+When the script opens the site and asks you to verify it, click the **Home** button in the top-left and check that the plugins are installed before typing `DONE` in PowerShell. After typing `DONE` and letting the script finish, manually change the theme to **Degrade** and set its color to **green1**.
+
+![alt text](image.png)
 
 ### 5. Restart recommended
 

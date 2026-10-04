@@ -88,26 +88,27 @@ function Invoke-BrandingSetup {
         foreach ($key in $names.Keys) { if (-not $assets[$key]) { $assets[$key] = Get-BrandingFile $root $names[$key] } }
     }
     $missing = @($assets.GetEnumerator() | Where-Object { -not $_.Value } | ForEach-Object Key)
-    if ($missing.Count -gt 0) { Write-Host "Skipping branding setup because these files are missing from $BrandingRoot: $($missing -join ', ')"; return }
+    if ($missing.Count -gt 0) { Write-Host "Skipping branding setup because these files are missing from ${BrandingRoot}: $($missing -join ', ')"; return }
 
-    $phpBrandScript = @"
-<?php
-require_once('$MoodleRoot/config.php');
-require_once(\$CFG->dirroot . '/lib/filelib.php');
-function save_brand_file(string \$component, string \$filearea, string \$sourcepath, int \$itemid = 0): void {
-    if (!file_exists(\$sourcepath)) { throw new RuntimeException('Missing file: ' . \$sourcepath); }
-    \$context = context_system::instance();
-    \$fs = get_file_storage();
-    \$fs->delete_area_files(\$context->id, \$component, \$filearea, \$itemid);
-    \$fs->create_file_from_pathname(['contextid'=>\$context->id,'component'=>\$component,'filearea'=>\$filearea,'itemid'=>\$itemid,'filepath'=>'/','filename'=>basename(\$sourcepath)], \$sourcepath);
-    set_config(\$filearea, '/' . basename(\$sourcepath), \$component);
+        $phpBrandScript = @"
+    <?php
+    define('CLI_SCRIPT', true);
+    require_once('$MoodleRoot/config.php');
+    require_once(`$CFG->dirroot . '/lib/filelib.php');
+    function save_brand_file(string `$component, string `$filearea, string `$sourcepath, int `$itemid = 0): void {
+        if (!file_exists(`$sourcepath)) { throw new RuntimeException('Missing file: ' . `$sourcepath); }
+        `$context = context_system::instance();
+        `$fs = get_file_storage();
+        `$fs->delete_area_files(`$context->id, `$component, `$filearea, `$itemid);
+        `$fs->create_file_from_pathname(['contextid'=>`$context->id,'component'=>`$component,'filearea'=>`$filearea,'itemid'=>`$itemid,'filepath'=>'/','filename'=>basename(`$sourcepath)], `$sourcepath);
+        set_config(`$filearea, '/' . basename(`$sourcepath), `$component);
 }
-save_brand_file('core_admin', 'logo', '$($assets.logo)');
-save_brand_file('core_admin', 'logocompact', '$($assets.logo)');
-save_brand_file('core_admin', 'favicon', '$($assets.favicon)');
-save_brand_file('theme_degrade', 'backgroundimage', '$($assets.background)');
-save_brand_file('theme_degrade', 'loginbackgroundimage', '$($assets.loginBackground)');
-save_brand_file('theme_degrade', 'loginlogo', '$($assets.loginLogo)');
+    save_brand_file('core_admin', 'logo', '$($assets.logo)');
+    save_brand_file('core_admin', 'logocompact', '$($assets.logo)');
+    save_brand_file('core_admin', 'favicon', '$($assets.favicon)');
+    save_brand_file('theme_degrade', 'backgroundimage', '$($assets.background)');
+    save_brand_file('theme_degrade', 'loginbackgroundimage', '$($assets.loginBackground)');
+    save_brand_file('theme_degrade', 'loginlogo', '$($assets.loginLogo)');
 purge_caches();
 "@
     $temp = Join-Path $env:TEMP 'moodle-branding-apply.php'
@@ -137,9 +138,8 @@ if (-not (Test-Path $repoServerArchive) -and -not (Test-Path $repoCode)) { throw
 if (-not (Test-Path $repoServerArchive) -and -not (Test-Path $repoDataArchive) -and -not (Test-Path $repoData)) { throw "A Moodle data backup was not found in $BackupRoot." }
 Test-CommandExists $repoSql; Test-CommandExists $LocalRoot; Test-CommandExists $mysqlBin; Test-CommandExists $mysqlExe; Test-CommandExists $mysqldumpExe; Test-CommandExists $phpExe
 if (-not $Force -and (Read-Host 'This will overwrite local Moodle data. Type YES to continue') -ne 'YES') { Write-Host 'Restore cancelled.'; return }
-$timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-if (Test-Path $localData) { Rename-Item $localData "$($localData).backup-$timestamp" }
-if (Test-Path $localCode) { Rename-Item $localCode "$($localCode).backup-$timestamp" }
+if (Test-Path $localData) { Remove-Item -LiteralPath $localData -Recurse -Force }
+if (Test-Path $localCode) { Remove-Item -LiteralPath $localCode -Recurse -Force }
 New-Item -ItemType Directory -Path $localData -Force | Out-Null
 if (Test-Path $repoServerArchive) { Expand-ArchiveToFolder $repoServerArchive $LocalRoot } elseif (Test-Path $repoDataArchive) { Expand-ArchiveToFolder $repoDataArchive $LocalRoot } else { Copy-Item (Join-Path $repoData '*') $localData -Recurse -Force }
 if (Test-Path $repoCode) { Copy-Item $repoCode $LocalRoot -Recurse -Force }
@@ -156,6 +156,7 @@ $start = Join-Path (Split-Path $LocalRoot -Parent) 'Start Moodle.exe'; if (Test-
 Wait-ForMySql $mysqlExe $DbHost $DbUser $DbPassword
 $auth = @('-h',$DbHost,'-u',$DbUser); if ($DbPassword) { $auth += '-p' + $DbPassword }
 Invoke-MySqlCommand $mysqlExe ($auth + @('-e',"DROP DATABASE IF EXISTS $DatabaseName; CREATE DATABASE $DatabaseName;")) | Out-Null
+$timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $normalized = Join-Path $LocalRoot "moodle-backup-normalized-$timestamp.sql"; (Get-Content $repoSql -Raw) | Set-Content $normalized -Encoding UTF8
 Get-Content $normalized | & $mysqlExe ($auth + @($DatabaseName)); if ($LASTEXITCODE -ne 0) { throw 'SQL import failed.' }
 Invoke-MySqlCommand $mysqlExe ($auth + @('-e',"DELETE FROM $DatabaseName.mdl_config WHERE name = 'siteidentifier';")) | Out-Null
