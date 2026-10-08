@@ -43,6 +43,16 @@ Make sure your local server folder exists. In most setups it looks like this:
 
 If the folder already contains an old `moodle` or `moodledata` folder, delete it before restoring the new data.
 
+**Important:** The restore script requires the Moodle site to have been initialized at least once. If you're restoring to a fresh installation, run the Moodle setup wizard first, then run this script.
+
+![Installing all inbuilt plugins](image-1.png)
+
+The initialization above must be completed, where the server binaries are installed, after which you must also add placeholder values for necessary fields for the initialization, after which you will run the script replacing all those placeholders.
+
+![Final state before continuing](image-2.png)
+
+At the above image, its safe to proceed.
+
 ### 2. Stop Moodle
 
 **Important:** Before running the restore script, you must stop the Moodle server.
@@ -50,6 +60,11 @@ If the folder already contains an old `moodle` or `moodledata` folder, delete it
 If Moodle is currently running, click the **Stop Moodle.exe** application in your Moodle installation folder to shut it down.
 
 ### 3. Run the restore script
+
+Make sure you replace the directories at the top of the powershell script to the appropriate directories.
+
+LocalRoot is where your moodle install is located.
+BackupRoot is where your git repo is located.
 
 Run this from the repository folder in PowerShell:
 
@@ -59,17 +74,30 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\restore-moodle-backup.
 
 The script asks for confirmation before replacing local Moodle data. It removes existing Moodle folders without making backups, extracts `server.zip`, writes `config.php` including Moodle's required `lib/setup.php` bootstrap, starts the Moodle server, imports the database, and waits for you to verify the site before applying branding.
 
-**Important:** The restore script requires the Moodle site to have been initialized at least once. If you're restoring to a fresh installation, run the Moodle setup wizard first, then run this script.
-
 
 
 ### 4. Verify the restore
 
 
 
-When the script opens the site and asks you to verify it, click the **Home** button in the top-left and check that the plugins are installed before typing `DONE` in PowerShell. After typing `DONE` and letting the script finish, manually change the theme to **Degrade** and set its color to **green1**.
+When the script opens the site and asks you to verify it, login with the below credentials and then click the **Home** button in the top-left and check that the plugins are installed before typing `DONE` in PowerShell.
 
-![alt text](image.png)
+![Additional Plugins Install](image-3.png)
+
+After this, change nothing and click save changes.
+
+After typing `DONE` and letting the script finish, manually change the theme to **Degrade** and set its color to **green1**.
+
+To set theme:
+
+Site Administration > Appearance > Themes 
+
+To set color:
+
+Site Administration > Appearance > Custom theme settings > Degrade - Advanced settings 
+
+
+![Theme Change](image.png)
 
 ### 5. Restart recommended
 

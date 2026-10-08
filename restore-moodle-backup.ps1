@@ -1,6 +1,6 @@
 param(
     [string]$BackupRoot = "C:\Users\tejas\MoodleNGO",
-    [string]$LocalRoot = "C:\temp\n\server",
+    [string]$LocalRoot = "C:\temp\a\server",
     [string]$SiteUrl = "https://localhost",
     [string]$DatabaseName = "moodle",
     [string]$DbUser = "root",
