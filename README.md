@@ -16,17 +16,18 @@ Extract it to `C:\Users\[YourUsername]\moodle-dev\` (your choice of folders, you
 
 Download from: https://www.7-zip.org/download.html
 
-This is required for extracting the `server.zip` backup file efficiently.
+This is recommended for extracting the `server.zip` backup file reliably. Use the 7‑Zip graphical UI (Right‑click → 7‑Zip → Extract Here / Extract to "folder") if possible — it's the simplest and avoids common path/permission problems. If the UI does not work, use the command line instructions below.
 
 ## What this backup contains
 
-- `moodle_backup.sql` — the latest MySQL dump for the Moodle database
-- `restore-moodle-backup.ps1` — the restore script for rebuilding the local Moodle server
-- `server.zip` — the local Moodle application runtime to restore the `moodle/` and `moodledata/` directories
+- `server.zip` — the local Moodle application runtime archive that contains both `moodle/` (code) and `moodledata/` (site files).
+- `moodle.sql` — the SQL dump for the Moodle database (located at the repository root).
+- `restore-moodle-backup.ps1` — the original restore script (left unchanged).
+- `restore-moodle-backup-windows10.ps1` — an alternative script with Windows 10 compatibility improvements.
 
 ## Cloning this repository
 
-When cloning this repository, **the initial clone may appear frozen for a few minutes**. This is normal—`server.zip` is a large file (234 MB) and is tracked with Git LFS. Please be patient and let the clone finish.
+When cloning this repository, **the initial clone may appear frozen for a few minutes**. This is normal—`server.zip` is a large file and is tracked with Git LFS. Please be patient and let the clone finish.
 
 ```powershell
 git clone https://github.com/TejasNair9977/MoodleNGO.git
@@ -41,14 +42,9 @@ Make sure your local server folder exists. In most setups it looks like this:
 
 - `C:\Users\tejas\moodle-dev\server`
 
-If the folder already contains an old `moodle` or `moodledata` folder, delete it before restoring the new data.
+If the folder already contains an old `moodle` or `moodledata` folder, delete or move it before restoring the new data.
 
-**Important:** The restore script requires the Moodle site to have been initialized at least once. If you're restoring to a fresh installation, run the Moodle setup wizard first, then run this script.
-
-
-The initialization above must be completed, where the server binaries are installed, after which you must also add placeholder values for necessary fields for the initialization, after which you will be able to continue with the restore.
-
-At the above image, it's safe to proceed.
+**Important:** The restore script requires the Moodle site to have been initialized at least once. If you're restoring to a fresh installation, run the Moodle setup wizard first, then run the script.
 
 ### 2. Stop Moodle
 
@@ -63,23 +59,25 @@ Make sure you replace the directories at the top of the PowerShell script to the
 LocalRoot is where your moodle install is located.
 BackupRoot is where your git repo is located.
 
-Run this from the repository folder in PowerShell:
+Run this from the repository folder in PowerShell. Prefer the Windows 10 script if you ran into issues previously:
 
 ```powershell
+# preferred: Windows 10 friendly script
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\restore-moodle-backup-windows10.ps1
+
+# or original (unchanged) script
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\restore-moodle-backup.ps1
 ```
 
 The script asks for confirmation before replacing local Moodle data. It removes existing Moodle folders without making backups, extracts `server.zip`, writes `config.php` including Moodle's required settings, creates the database and imports the SQL, purges caches and prompts you to verify the restored site.
 
-
-
 ### 4. Verify the restore
 
-When the script opens the site and asks you to verify it, login with the below credentials and then click the **Home** button in the top-left and check that the plugins are installed before typing DONE.
+When the script opens the site and asks you to verify it, login with the admin credentials and check that the plugins are installed before typing DONE.
 
 After this, change nothing and click save changes.
 
-After typing `DONE` and letting the script finish, manually change the theme to **Degrade** and set its color to **green1**.
+After typing `DONE` and letting the script finish, manually change the theme to **Degrade** and set its color to **green1** if required by the project instructions.
 
 To set theme:
 
@@ -92,7 +90,7 @@ Site Administration > Appearance > Custom theme settings > Degrade - Advanced se
 
 ### 5. Restart recommended
 
-After the restore completes, a restart of Moodle is recommended to ensure all services are running cleanly.
+After the restore completes, a restart of Moodle (and any helper services) is recommended to ensure all services are running cleanly.
 
 ## Login credentials
 
@@ -139,10 +137,11 @@ Install and start [Docker Desktop](https://www.docker.com/products/docker-deskto
 
 ### MariaDB setup with the backup
 
-Use this option to start Moodle with MariaDB and initialize the database from `moodle_backup.sql`:
+Use this option to start Moodle with MariaDB and initialize the database from `moodle.sql`:
 
 ```powershell
 # Extract server.zip into this repository first so moodle/ and moodledata/ exist.
+# Use the 7-Zip GUI if possible: Right-click -> 7-Zip -> Extract to "server\" or "Extract Here"
 7z x server.zip -o. -y
 
 docker compose -f docker-compose-with-backup.yml up -d
@@ -167,6 +166,7 @@ Use the default Compose file for a clean PostgreSQL-based Moodle container:
 
 ```powershell
 # Extract server.zip into this repository first so moodle/ exists.
+# Prefer the 7-Zip GUI; fall back to the command-line if the UI doesn't work.
 7z x server.zip -o. -y
 
 docker compose up -d
@@ -179,58 +179,38 @@ docker compose logs -f moodle
 docker compose down
 ```
 
-The default Compose setup uses PostgreSQL and does not automatically import `moodle_backup.sql`. Do not run both Compose files at the same time because they use the same Moodle port.
+The default Compose setup uses PostgreSQL and does not automatically import `moodle.sql`. Do not run both Compose files at the same time because they use the same Moodle port.
 
 
 ## Restore troubleshooting and manual recovery notes
 
-If the automated restore script fails, especially during extraction, follow these steps manually.
+If the automated restore script fails, especially during extraction, follow these steps manually. The archive `server.zip` contains both the `moodle/` and `moodledata/` folders, and the SQL dump is available at the repository root as `moodle.sql`.
 
-### 1. Confirm the backup contents
+### 1. Confirm the backup contents (visual check)
 
-Check that the backup folder contains the files you need:
+Make sure the repository root contains `server.zip` and `moodle.sql`, and that `server.zip` contains both `moodle/` and `moodledata/` when opened with your archive tool.
 
-- `moodle/` or `server.zip`
-- `moodledata/` or `moodledat.zip`
-- `moodle.sql`
+### 2. Extract the server archive (7-Zip GUI preferred)
 
-Example:
+Use the 7-Zip graphical interface if possible:
 
-```powershell
-Get-ChildItem -LiteralPath "C:\path\to\backup" -Force | Format-Table Name,Length
-```
+- Right-click `server.zip` → 7-Zip → "Extract Here" or "Extract to server\".
 
-### 2. Extract the server archive manually
-
-If extraction fails, use 7-Zip first. 7-Zip is the most reliable tool for Windows archives:
+If the GUI extraction fails or isn't available, use the 7-Zip command-line as a fallback:
 
 ```powershell
-"C:\Program Files\7-Zip\7z.exe" t "C:\path\to\backup\server.zip"
-"C:\Program Files\7-Zip\7z.exe" x -y "-oC:\temp\a\server" "C:\path\to\backup\server.zip"
+"C:\Program Files\7-Zip\7z.exe" x -y "-oC:\temp\a\server" "C:\path\to\repo\server.zip"
 ```
 
-If 7-Zip is not installed, use PowerShell:
+Do not rely on other extraction fallbacks; 7‑Zip is the supported method in this guide.
 
-```powershell
-Expand-Archive -LiteralPath "C:\path\to\backup\server.zip" -DestinationPath "C:\temp\a\server" -Force
-```
-
-If `Expand-Archive` fails, try the .NET fallback:
-
-```powershell
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::ExtractToDirectory('C:\path\to\backup\server.zip','C:\temp\a\server')
-```
-
-If you still hit long-path errors, extract to a shorter path such as `C:\moodle-restore`.
-
-### 3. Restore the database manually
+### 3. Restore the database manually (command prompt recommended)
 
 If the script fails while importing SQL, run the import manually in `cmd.exe`:
 
 ```cmd
 "C:\path\to\mysql.exe" -h localhost -u root -p -e "DROP DATABASE IF EXISTS moodle; CREATE DATABASE moodle;"
-"C:\path\to\mysql.exe" -h localhost -u root -p moodle < "C:\path\to\backup\moodle.sql"
+"C:\path\to\mysql.exe" -h localhost -u root -p moodle < "C:\path\to\repo\moodle.sql"
 ```
 
 Then remove the stale site identifier:
@@ -241,7 +221,7 @@ Then remove the stale site identifier:
 
 ### 4. Create the config.php manually
 
-If the script does not write the config file correctly, create it by hand:
+If the script does not write the config file correctly, create it by hand at `C:\temp\a\server\moodle\config.php` (adjust paths/credentials):
 
 ```php
 <?php
@@ -264,10 +244,10 @@ Then open the site in a browser and verify the installation manually.
 
 ### 6. If the script still fails
 
-- Extract to a shorter path.
-- Ensure 7-Zip is installed or available in PATH.
+- Ensure you're using the 7‑Zip GUI first, and only use the 7‑Zip command-line if needed.
+- Extract to a short path (e.g., `C:\moodle-restore`) to avoid long-path issues.
+- Ensure 7‑Zip is installed and accessible at `C:\Program Files\7-Zip\7z.exe` or on PATH.
 - Confirm `mysql.exe` and `php.exe` are accessible.
-- Check that the backup folder is not locked or being scanned by antivirus.
-- Re-run the import from `cmd.exe` rather than PowerShell if the PowerShell pipeline is causing issues.
+- Check that the backup file is not locked or being scanned by antivirus.
 
 This section is intended as a manual fallback when the automated restore script does not complete successfully on Windows 10.
